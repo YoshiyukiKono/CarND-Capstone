@@ -11,8 +11,13 @@ import tf
 import cv2
 import yaml
 from scipy.spatial import KDTree
+import datetime
 
 STATE_COUNT_THRESHOLD = 3
+
+FLG_TRAINNING_DATA_COLLECTION = True
+
+LOOKAHEAD_WPS = 25 # 50 # Number of waypoints we will publish. You can change this number
 
 class TLDetector(object):
     def __init__(self):
@@ -112,6 +117,15 @@ class TLDetector(object):
         closest_idx = self.waypoint_tree.query([x, y], 1)[1]
         return closest_idx #0
 
+    def is_near_by_traffic_light(self):
+        closest_idx = 0;
+        if(self.pose):
+            closest_idx = self.get_closest_waypoint(self.pose.pose.position.x, self.pose.pose.position.y)
+        #closest_idx = self.get_closest_waypoint_idx()
+        farthest_idx = closest_idx + LOOKAHEAD_WPS
+        #return self.stopline_wp_idx == -1 or (self.stopline_wp_idx >= farthest_idx)
+        return self.last_wp == -1 or (self.last_wp >= farthest_idx)
+
     def get_light_state(self, light):
         """Determines the current color of the traffic light
 
@@ -122,19 +136,25 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        # For testing, just return the light state
-        return light.state
 
-        """
         if(not self.has_image):
             self.prev_light_loc = None
             return False
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        #path = "light_classification/DATA/{0:%H%M%S}_{1}.png".format(datetime.datetime.now(), light.state)
+        #cv2.imwrite(path, cv_image)
+
+        if FLG_TRAINNING_DATA_COLLECTION:
+            label = TrafficLight.UNKNOWN
+            if self.is_near_by_traffic_light():
+                label = light.state
+            self.light_classifier.save_training_data(cv_image, label)
 
         #Get classification
-        return self.light_classifier.get_classification(cv_image)
-        """
+        #_ = self.light_classifier.get_classification(cv_image)
+        # For testing, just return the light state
+        return light.state
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
