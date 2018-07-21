@@ -1,18 +1,18 @@
 # Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car
 
-### Group Formation
+## Group Formation
 
-## Term 3 Start
+### Term 3 Start
 
 April 24th, 2018
 
-## Team Name
+### Team Name
 
 BetterLateThanNever
 
-## Team Members
+### Team Members
 * Rahul Mehta (Team Leader)
-* Yoshiyuki Kono (The owner of this repository)
+* Yoshiyuki Kono (Repsitory Owner)
 * Greg Fousas
 * Andrea Pigato
 * Sidharth Arora
