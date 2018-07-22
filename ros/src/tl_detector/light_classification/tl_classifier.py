@@ -1,4 +1,4 @@
-from styx_msgs.msg import TrafficLight
+#from styx_msgs.msg import TrafficLight
 import datetime
 import cv2
 import sys
@@ -30,9 +30,13 @@ PATH_TEST_IMAGE_FILE = "/home/student/CarND-Capstone/ros/src/tl_detector/DATA/IM
 PATH_TRAINED_GRAPH = "/home/student/github/models/research/object_detection/ssd_mobilenet_v1_coco_2017_11_17/frozen_inference_graph.pb"
 PATH_LABEL_MAP = "/home/student/github/models/research/object_detection/data/mscoco_label_map.pbtxt"
 NUM_CLASSES = 90
+MAX_COUNT_DATA = 100
 
 PATH_TRAIN_DATA_DIR = ""
-PATH_YAML = "/home/student/Downloads/train.yaml" #TODO change the path
+#PATH_YAML = "/home/student/Downloads/train.yaml" #TODO change the path
+PATH_YAML = "C:/Work_BigData/Bosch_Small_Traffic_Lights_Dataset/dataset_train_rgb/train.yaml" #TODO change the path
+DIR_DATA_WITH_YAML = "C:/Work_BigData/Bosch_Small_Traffic_Lights_Dataset/dataset_train_rgb/"
+
 WIDTH_TRAIN_DATA = 1280
 HEIGHT_TRAIN_DATA = 720
 NUM_CLASSES_TRAIN_DATA = 14
@@ -46,9 +50,9 @@ class TLClassifier(object):
     def __init__(self):
         #TODO load classifier
         #self.append_required_modules()
-        self.load_model()
-        self.load_label_map()
-        #pass
+        #self.load_model()
+        #self.load_label_map()
+        pass
 
     def load_model(self):
         self.detection_graph = tf.Graph()
@@ -108,18 +112,28 @@ class TLClassifier(object):
         #image_np
         cv2.imwrite("test.png", image_array)
 
-    def write_tf_record(self):
-        writer = tf.python_io.TFRecordWriter(PATH_TF_RECORD)
-        examples = yaml.load(open(PATH_YAML, 'rb').read())
+    def write_tf_record(self, path_tf_record, path_yaml, dir_yaml_data):
+        writer = tf.python_io.TFRecordWriter(path_tf_record)
+        examples = yaml.load(open(path_yaml, 'rb').read())
+        count = 0
         for example in examples:
             filename = example['path']
-
+            
+            filename = os.path.abspath(os.path.join(os.path.dirname(dir_yaml_data), filename))
+            #filename = "C:/Work_BigData/Bosch_Small_Traffic_Lights_Dataset/dataset_train_rgb/" + filename
+            #print(filename)
             if (not os.path.exists(filename)):
                 print(filename, " does not exist.")
                 continue
+            count = count + 1
+            if count > MAX_COUNT_DATA:
+                break
             filename = filename.encode()
             with tf.gfile.GFile(filename, 'rb') as fid:
                 encoded_image = fid.read()
+            image = Image.open(filename)
+            (width, height) = image.size
+            image_string = np.array(image).tostring() 
             image_format = 'png'.encode()
             xmins = []
             xmaxs = []
@@ -132,8 +146,10 @@ class TLClassifier(object):
                 xmaxs.append(float(box['x_max']/width))
                 ymins.append(float(box['y_min']/height))
                 ymaxs.append(float(box['y_max']/height))
-                classes_text.append(box['label'])
+                classes_text.append(box['label'].encode('utf-8'))
+                print("[", box['label'].encode('utf-8'), "]")
                 classes.append(int(DICT_LABEL[box['label']]))
+
             tf_example = tf.train.Example(features=tf.train.Features(feature={
                 'image/height' : dataset_util.int64_feature(height),
                 'image/width' : dataset_util.int64_feature(width),
@@ -147,6 +163,7 @@ class TLClassifier(object):
                 'image/object/bbox/ymax' : dataset_util.float_list_feature(ymaxs),
                 'image/object/class/text' : dataset_util.bytes_list_feature(classes_text),
                 'image/object/class/label' : dataset_util.int64_list_feature(classes),
+                #'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[image_string])),
             }))
             writer.write(tf_example.SerializeToString())
         writer.close()
@@ -169,12 +186,63 @@ class TLClassifier(object):
         path = DIR_DATA + FILE_PREFIX_IMG + "{0:%Y%m%d_%H%M%S}_{1}.png".format(datetime.datetime.now(), label)
         cv2.imwrite(path, cv_image)
 
-    def generate_model(self):
-        pass
+    def confirm_tf_record(self, path_tf_record):
+        file_name_queue = tf.train.string_input_producer([path_tf_record])
+        reader = tf.TFRecordReader()
+        _, serialized_example = reader.read(file_name_queue)
+        features = tf.parse_single_example(serialized_example, features = {
+                #"class_count": tf.FixedLenFeature([], tf.int64),
+                #"image/object/class/label": tf.FixedLenFeature([], tf.int64),
+                "image": tf.FixedLenFeature([], tf.string),
+                "image/height": tf.FixedLenFeature([], tf.int64),
+                #"image/width": tf.FixedLenFeature([], tf.int64),
+                #"depth": tf.FixedLenFeature([], tf.int64),
+                })
+        for feature in features:
+            print("Feature")
+        
+        with tf.Session() as sess:
+            sess.run(tf.local_variables_initializer())
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+            try:
+                height = tf.cast(features["image/height"], tf.int64).eval()
+                #width = tf.cast(features["image/width"], tf.int64).eval()
+                #depth = tf.cast(features["depth"], tf.int32).eval()
+                #class_count = tf.cast(features["class_count"], tf.int32).eval()
+                print("Height:", height)
+                #label = tf.cast(features["image/object/class/label"], tf.int64)
+                #img = tf.reshape(tf.decode_raw(features["image"], tf.uint8),
+                #           tf.stack([height, width, depth]))
+            finally:
+                coord.request_stop()
+            coord.join(threads)
 
+    def train_batch(self):
+        img = tf.cast(img, tf.float32) * (1. / 255)
+        label = tf.cast(label, dtype=tf.float32)
+        batch_size = 100
+        # https://www.tensorflow.org/api_docs/python/tf/train/batch
+        images, sparse_labels = tf.train.batch([img, label], batch_size=batch_size,
+                num_threads=2,
+                capacity=1000 + 3 * batch_size)
+        sess = tf.InteractiveSession()
+        sess.run(tf.global_variables_initializer())
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+        try:
+            images, lobels = sess.run([img, label])# TODO 
+        finally:
+            coord.request_stop()
+        coord.join(threads)
+        sess.close()
 
 if __name__ == '__main__':
     light_classifier = TLClassifier()
-    light_classifier.test() # generate_model()
+    #light_classifier.load_model()
+    #light_classifier.load_label_map()
+    #light_classifier.test() # generate_model()
     if (not os.path.exists(PATH_TF_RECORD)):
-        light_classifier.write_tf_record()
+        light_classifier.write_tf_record(PATH_TF_RECORD, PATH_YAML, DIR_DATA_WITH_YAML)
+    else:
+        light_classifier.confirm_tf_record(PATH_TF_RECORD) #train(PATH_TF_RECORD, PATH_TRAINED_GRAPH)
