@@ -17,10 +17,10 @@ PATH_TF_MODELS_OBJECT_DETECTION = "/home/student/github/models/research/object_d
 sys.path.append(PATH_TF_MODELS_RESEARCH)
 sys.path.append(PATH_TF_MODELS_SLIM)
 sys.path.append(PATH_TF_MODELS_OBJECT_DETECTION)
-from utils import label_map_util
-from utils import visualization_utils as vis_util
+#from utils import label_map_util
+#from utils import visualization_utils as vis_util
 
-from utils import dataset_util
+#from utils import dataset_util
 
 FILE_PREFIX_IMG = "IMG_"
 DIR_DATA = "DATA/"
