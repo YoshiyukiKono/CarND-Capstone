@@ -15,7 +15,9 @@ import datetime
 
 STATE_COUNT_THRESHOLD = 3
 
-FLG_TRAINNING_DATA_COLLECTION = True
+FLG_TRAINNING_DATA_COLLECTION = False #True
+FLG_USE_GROUND_TRUTH = True # False
+FLG_USE_GROUND_TRUTH = False
 
 LOOKAHEAD_WPS = 25 # 50 # Number of waypoints we will publish. You can change this number
 
@@ -58,7 +60,8 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
 
-        rospy.spin()
+        #rospy.spin()
+        self.spin()
 
     def pose_cb(self, msg):
         self.pose = msg
@@ -82,13 +85,14 @@ class TLDetector(object):
         """
         self.has_image = True
         self.camera_image = msg
-        light_wp, state = self.process_traffic_lights()
+        #light_wp, state = self.process_traffic_lights()
 
         '''
         Publish upcoming red lights at camera frequency.
         Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
         of times till we start using it. Otherwise the previous stable state is
         used.
+        '''
         '''
         if self.state != state:
             self.state_count = 0
@@ -101,6 +105,33 @@ class TLDetector(object):
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
+        '''
+
+    def spin(self):
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            '''
+            Publish upcoming red lights at camera frequency.
+            Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
+            of times till we start using it. Otherwise the previous stable state is
+            used.
+            '''
+            while self.pose is not None and self.waypoints is not None and self.camera_image is not None:
+                light_wp, state = self.process_traffic_lights()
+                if self.state != state:
+                    self.state_count = 0
+                    self.state = state
+                elif self.state_count >= STATE_COUNT_THRESHOLD:
+                    self.last_state = self.state
+                    light_wp = light_wp if state == TrafficLight.RED else -1
+                    self.last_wp = light_wp
+                    self.upcoming_red_light_pub.publish(Int32(light_wp))
+                else:
+                    self.upcoming_red_light_pub.publish(Int32(self.last_wp))
+                self.state_count += 1
+
+                rate.sleep() # Trial
+            #rate.sleep()
 
     #def get_closest_waypoint(self, pose):
     def get_closest_waypoint(self, x, y):
@@ -154,7 +185,16 @@ class TLDetector(object):
         #Get classification
         #_ = self.light_classifier.get_classification(cv_image)
         # For testing, just return the light state
-        return light.state
+        # TODO:
+
+        #return tl_class
+        # Use Ground Truth
+        if FLG_USE_GROUND_TRUTH:
+            return light.state
+        else:
+            tl_class = self.light_classifier.get_classification(cv_image)
+            rospy.loginfo('[KONO] tl_class: %s light.state :%s', tl_class, light.state)
+            return tl_class
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -189,9 +229,11 @@ class TLDetector(object):
 
         if closest_light:
             state = self.get_light_state(closest_light)
+            #rospy.loginfo('[KONO] line_wp_idx: %s, state: %s', line_wp_idx, state)
             return line_wp_idx, state
         # As there is no line below in Walkthrough code, I comment out for now.
         #self.waypoints = None
+        rospy.loginfo('closest_light is False')
         return -1, TrafficLight.UNKNOWN
 
 if __name__ == '__main__':
