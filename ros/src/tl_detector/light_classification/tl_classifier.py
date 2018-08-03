@@ -146,7 +146,7 @@ class TLClassifier(object):
 
         """
         #TODO implement light color prediction
-        rospy.loginfo('[KONO] CALLED get_classification')
+        #rospy.loginfo('[KONO] CALLED get_classification')
         feed_image = np.expand_dims(image, axis=0)
         (boxes, scores, classes, num) = self.run_detection(feed_image)
         #tl_color = self.judge_traffic_light(scores[0], classes[0], num[0])
