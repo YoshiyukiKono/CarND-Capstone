@@ -32,7 +32,7 @@ DIR_DATA = "DATA/"
 
 #PATH_TRAINED_GRAPH = "/home/student/github/models/research/object_detection/ssd_mobilenet_v1_coco_2017_11_17/frozen_inference_graph.pb"
 #PATH_TRAINED_GRAPH = "/home/student/CarND-Capstone/ros/src/tl_detector/frozen_inference_graph.pb"
-PATH_TRAINED_GRAPH = "./frozen_inference_graph.pb"
+
 #PATH_LABEL_MAP = "/home/student/github/models/research/object_detection/data/mscoco_label_map.pbtxt"
 #NUM_CLASSES = 90
 
@@ -50,15 +50,15 @@ DICT_LABEL = { "green" : 1, "red" : 2, "yellow" : 3, "off" : 4 }
 
 class TLClassifier(object):
     def __init__(self):
-        #TODO load classifier
-        self.load_model()
+        #self.load_model(PATH_TRAINED_GRAPH_SITE)
+        pass
 
 
-    def load_model(self):
+    def load_model(self, path_to_trained_graph):
         self.detection_graph = tf.Graph()
         with self.detection_graph.as_default():
             graph_def = tf.GraphDef()
-            with tf.gfile.GFile(PATH_TRAINED_GRAPH, 'rb') as fid:
+            with tf.gfile.GFile(path_to_trained_graph, 'rb') as fid:
                 serialized_graph = fid.read()
                 graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(graph_def, name='')
@@ -151,7 +151,7 @@ class TLClassifier(object):
         (boxes, scores, classes, num) = self.run_detection(feed_image)
         #tl_color = self.judge_traffic_light(scores[0], classes[0], num[0])
         tl_color = self.judge_traffic_light(scores, classes, num)
-        rospy.loginfo('[KONO] tl_color: %s', tl_color)
+        #rospy.loginfo('[KONO] tl_color: %s', tl_color)
         return tl_color
         #return TrafficLight.UNKNOWN
 

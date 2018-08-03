@@ -13,13 +13,18 @@ import yaml
 from scipy.spatial import KDTree
 import datetime
 
+import threading
+
 STATE_COUNT_THRESHOLD = 3
 
 FLG_TRAINNING_DATA_COLLECTION = False #True
-FLG_USE_GROUND_TRUTH = True # False
+#FLG_USE_GROUND_TRUTH = True # False
 FLG_USE_GROUND_TRUTH = False
 
 LOOKAHEAD_WPS = 25 # 50 # Number of waypoints we will publish. You can change this number
+
+PATH_TRAINED_GRAPH_SIM = "./frozen_inference_graph.pb"
+PATH_TRAINED_GRAPH_SITE = "./site/frozen_inference_graph.pb"
 
 class TLDetector(object):
     def __init__(self):
@@ -53,6 +58,15 @@ class TLDetector(object):
 
         self.bridge = CvBridge()
         self.light_classifier = TLClassifier()
+        flg_site = False
+        if ('is_site' in self.config):
+            flg_site = self.config['is_site']
+        if FLG_USE_GROUND_TRUTH == False:
+            if flg_site == True:
+                self.light_classifier.load_model(PATH_TRAINED_GRAPH_SITE)
+            else:
+                self.light_classifier.load_model(PATH_TRAINED_GRAPH_SIM)
+
         self.listener = tf.TransformListener()
 
         self.state = TrafficLight.UNKNOWN
@@ -60,8 +74,10 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
 
-        #rospy.spin()
-        self.spin()
+        self.threading_rlock = threading.RLock()
+
+        rospy.spin()
+        #self.spin()
 
     def pose_cb(self, msg):
         self.pose = msg
@@ -83,39 +99,36 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
-        self.has_image = True
-        self.camera_image = msg
-        #light_wp, state = self.process_traffic_lights()
+        if self.threading_rlock.acquire(True):
+            self.has_image = True
+            self.camera_image = msg
+            #light_wp, state = self.process_traffic_lights()
 
-        '''
-        Publish upcoming red lights at camera frequency.
-        Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
-        of times till we start using it. Otherwise the previous stable state is
-        used.
-        '''
-        '''
-        if self.state != state:
-            self.state_count = 0
-            self.state = state
-        elif self.state_count >= STATE_COUNT_THRESHOLD:
-            self.last_state = self.state
-            light_wp = light_wp if state == TrafficLight.RED else -1
-            self.last_wp = light_wp
-            self.upcoming_red_light_pub.publish(Int32(light_wp))
-        else:
-            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
-        self.state_count += 1
-        '''
-
-    def spin(self):
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
             '''
             Publish upcoming red lights at camera frequency.
             Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
             of times till we start using it. Otherwise the previous stable state is
             used.
             '''
+            light_wp, state = self.process_traffic_lights()
+            if self.state != state:
+                self.state_count = 0
+                self.state = state
+            elif self.state_count >= STATE_COUNT_THRESHOLD:
+                self.last_state = self.state
+                light_wp = light_wp if state == TrafficLight.RED else -1
+                self.last_wp = light_wp
+                self.upcoming_red_light_pub.publish(Int32(light_wp))
+            else:
+                self.upcoming_red_light_pub.publish(Int32(self.last_wp))
+            self.state_count += 1
+
+            self.threading_rlock.release()
+
+    """
+    def spin(self):
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
             while self.pose is not None and self.waypoints is not None and self.camera_image is not None:
                 light_wp, state = self.process_traffic_lights()
                 if self.state != state:
@@ -130,8 +143,8 @@ class TLDetector(object):
                     self.upcoming_red_light_pub.publish(Int32(self.last_wp))
                 self.state_count += 1
 
-                rate.sleep() # Trial
-            #rate.sleep()
+            rate.sleep()
+    """
 
     #def get_closest_waypoint(self, pose):
     def get_closest_waypoint(self, x, y):
@@ -190,6 +203,7 @@ class TLDetector(object):
         #return tl_class
         # Use Ground Truth
         if FLG_USE_GROUND_TRUTH:
+            #rospy.loginfo('[KONO] GROUND TRUTH light.state :%s', light.state)
             return light.state
         else:
             tl_class = self.light_classifier.get_classification(cv_image)
