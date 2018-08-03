@@ -11,11 +11,17 @@ April 24th, 2018
 BetterLateThanNever
 
 ### Team Members
-* Rahul Mehta (Team Leader)
-* Yoshiyuki Kono (Repsitory Owner)
-* Greg Fousas
-* Andrea Pigato
-* Sidharth Arora
+|Name|E-mail Address|
+|:--|:--|
+|Rahul Mehta (Team Leader)|rahulmehta87@gmail.com|
+|Yoshiyuki Kono (Repsitory Owner)|yoshiyuki.kono@gmail.com|
+|Greg Fousas|odisseas_mpd@hotmail.com|
+|Andrea Pigato|pigato.andrea@gmail.com|
+|Sidharth Arora|sid.manutd@gmail.com|
+
+### Related Repositories
+* https://github.com/YoshiyukiKono/traffic_lights_detection_model_training
+* https://github.com/YoshiyukiKono/CarND-Capstone_images
 
 ***
 
